@@ -26,13 +26,13 @@ func Read() (Config, error) {
 	return currentConfig, nil
 }
 
-func SetUser(currentConfig Config, user string) error {
-	currentConfig.CurrentUserNname = user
+func SetUser(currentConfig *Config, user string) error {
+	currentConfig.CurrentUserName = user
 	write(currentConfig)
 	return nil
 }
 
-func write(cfg Config) error {
+func write(cfg *Config) error {
 	userhome, osError := os.UserHomeDir()
 	if osError != nil {
 		return fmt.Errorf("Error occurred loading the HOME directory", osError)
