@@ -1,14 +1,23 @@
 package main
 
+import _ "github.com/lib/pq"
+
 import (
+	"context"
 	"fmt"
 	"os"
-
+	"database/sql"
+	"time"
+	
 	"github.com/mortalglitch/gator/internal/config"
+	"github.com/mortalglitch/gator/internal/database"
+
+	"github.com/google/uuid"
 )
 
 type state struct {
 	cfg *config.Config
+	db *database.Queries
 }
 
 type command struct {
@@ -40,10 +49,21 @@ func main() {
 		fmt.Println("error reading gator config")
 		os.Exit(1)
 	}
+	
 	currentState.cfg = &temp
+	
 	currentCommands := &commands{}
 	currentCommands.commandList = make(map[string]func(*state, command) error)
 	currentCommands.register("login", handlerLogin)
+	currentCommands.register("register", handlerRegister)
+
+	db, err := sql.Open("postgres", currentState.cfg.DBURL)
+	if err != nil {
+		fmt.Println("Error openning database")
+		os.Exit(1)
+	}
+	dbQueries := database.New(db)
+	currentState.db = dbQueries
 
 	arguments := os.Args
 	if len(arguments) > 1 {
@@ -67,14 +87,50 @@ func main() {
 		fmt.Println("too few arguments")
 		os.Exit(1)
 	}
+
 }
 
 func handlerLogin(s *state, cmd command) error {
 	if len(cmd.arguments) < 1 {
 		return fmt.Errorf("invalid command")
 	}
+	exists, _ := s.db.GetUser(context.Background(), cmd.arguments[0])
+	if exists == (database.User{}) {
+		fmt.Println("user doesn't exist")
+		os.Exit(1)
+	}
+
 	s.cfg.CurrentUserName = cmd.arguments[0]
 	config.SetUser(s.cfg, s.cfg.CurrentUserName)
 	fmt.Printf("user has been set to %s\n", cmd.arguments[0])
+	return nil
+}
+
+func handlerRegister(s *state, cmd command) error {
+	if len(cmd.arguments) < 1 {
+		return fmt.Errorf("invalid command length")
+	}
+
+	exists, _ := s.db.GetUser(context.Background(), cmd.arguments[0])
+	if exists != (database.User{}) {
+		fmt.Println("user already exist")
+		os.Exit(1)
+	}
+
+	userParams := database.CreateUserParams{}
+	userParams.ID = uuid.New()
+	userParams.CreatedAt = time.Now()
+	userParams.UpdatedAt = time.Now()
+	userParams.Name = cmd.arguments[0]
+
+	user, err := s.db.CreateUser(context.Background(), userParams)
+	if err != nil {
+		fmt.Println("error creating user in database")
+		os.Exit(1)
+	}
+  handlerLogin(s, cmd)
+	fmt.Println("user registered successfully")
+	fmt.Println(user)
+
 	return nil
 }
