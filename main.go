@@ -56,6 +56,7 @@ func main() {
 	currentCommands.commandList = make(map[string]func(*state, command) error)
 	currentCommands.register("login", handlerLogin)
 	currentCommands.register("register", handlerRegister)
+	currentCommands.register("reset", handlerReset)
 
 	db, err := sql.Open("postgres", currentState.cfg.DBURL)
 	if err != nil {
@@ -132,5 +133,15 @@ func handlerRegister(s *state, cmd command) error {
 	fmt.Println("user registered successfully")
 	fmt.Println(user)
 
+	return nil
+}
+
+func handlerReset(s *state, cmd command) error {
+	ok := s.db.Reset(context.Background())
+	if ok != nil {
+		fmt.Println("Error clearing database")
+		os.Exit(1)
+	}
+	fmt.Println("Database reset complete.")
 	return nil
 }
