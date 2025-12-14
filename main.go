@@ -57,6 +57,7 @@ func main() {
 	currentCommands.register("login", handlerLogin)
 	currentCommands.register("register", handlerRegister)
 	currentCommands.register("reset", handlerReset)
+	currentCommands.register("users", handlerUsers)
 
 	db, err := sql.Open("postgres", currentState.cfg.DBURL)
 	if err != nil {
@@ -143,5 +144,21 @@ func handlerReset(s *state, cmd command) error {
 		os.Exit(1)
 	}
 	fmt.Println("Database reset complete.")
+	return nil
+}
+
+func handlerUsers(s *state, cmd command) error {
+	ok, err := s.db.GetUsers(context.Background())
+	if err != nil {
+		fmt.Println("Error fetching users.")
+		os.Exit(1)
+	}
+	for i := 0; i < len(ok); i++ {
+		if ok[i] == s.cfg.CurrentUserName {
+			ok[i] = s.cfg.CurrentUserName + " (current)"
+		}
+		fmt.Println("* " + ok[i])
+	}
+	
 	return nil
 }
