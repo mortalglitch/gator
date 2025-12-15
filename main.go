@@ -4,7 +4,11 @@ import _ "github.com/lib/pq"
 
 import (
 	"context"
+	"encoding/xml"
 	"fmt"
+	"html"
+	"net/http"
+	"io"
 	"os"
 	"database/sql"
 	"time"
@@ -27,6 +31,22 @@ type command struct {
 
 type commands struct {
 	commandList map[string]func(*state, command) error
+}
+
+type RSSFeed struct {
+	Channel struct {
+		Title        string    `xml:"title"`
+		Link         string    `xml:"link"`
+		Description  string    `xml:"description"`
+		Item         []RSSItem `xml:"item"`
+	} `xml:"channel"`
+}
+
+type RSSItem struct {
+	Title       string `xml:"title"`
+	Link        string `xml:"link"`
+	Description string `xml:"description"`
+	PubDate     string `xml:"pubDate"`
 }
 
 func (c *commands) run(s *state, cmd command) error {
@@ -58,6 +78,7 @@ func main() {
 	currentCommands.register("register", handlerRegister)
 	currentCommands.register("reset", handlerReset)
 	currentCommands.register("users", handlerUsers)
+	currentCommands.register("agg", handlerAgg)
 
 	db, err := sql.Open("postgres", currentState.cfg.DBURL)
 	if err != nil {
@@ -161,4 +182,89 @@ func handlerUsers(s *state, cmd command) error {
 	}
 	
 	return nil
+}
+
+func handlerAgg(s *state, cmd command) error {
+	//feed, err := fetchFeed(context.Background(), "https://mashable.com/feeds/rss/all")
+	feed, err := fetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
+	if err != nil {
+		fmt.Println("Error fetching feed")
+		os.Exit(1)
+	}
+
+	items := feed.Channel.Item
+	fmt.Println(feed.Channel.Title)	
+	fmt.Println(feed.Channel.Link)	
+	fmt.Println(feed.Channel.Description)	
+	for _, item := range items {
+		fmt.Printf("%s\n", item.Title)
+		fmt.Printf("%s\n", item.Link)
+		fmt.Printf("%s\n", item.Description)
+		fmt.Printf("%s\n", item.PubDate)
+	}
+
+	return nil
+}
+
+func fetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
+	newClient := NewClient(5 * time.Second)
+	fmt.Println("Attempting to read feed from: ", feedURL)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", feedURL, nil)
+	if err != nil {
+		fmt.Println("An error occurred building a request.")
+		os.Exit(1)
+	}
+	req.Header.Set("User-Agent", "gator")
+
+	resp, err := newClient.httpClient.Do(req)
+	if err != nil {
+		fmt.Println("An error occurred fetching information.")
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+	
+	dat, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("An error occurred reading data")
+		os.Exit(1)
+	}
+	
+	feedResult := RSSFeed{}
+	err = xml.Unmarshal(dat, &feedResult)
+	if err != nil {
+		fmt.Println("An error occurred moving the data into the struct.", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("HTTP status:", resp.StatusCode)
+	fmt.Println("First 300 bytes:\n", string(dat[:300]))
+
+	fmt.Println("Channel title after unmarshal:", feedResult.Channel.Title)
+	fmt.Println("Items count:", len(feedResult.Channel.Item))
+
+	// Need to unescape the sequence here
+	feedResult.Channel.Title = html.UnescapeString(feedResult.Channel.Title)
+	feedResult.Channel.Description = html.UnescapeString(feedResult.Channel.Description)
+	for i, item := range feedResult.Channel.Item {
+		item.Title = html.UnescapeString(item.Title)
+		item.Description = html.UnescapeString(item.Description)
+		feedResult.Channel.Item[i] = item
+	}
+
+	return &feedResult, nil
+}
+
+// Client -
+type Client struct {
+	httpClient http.Client
+}
+
+// NewClient -
+func NewClient(timeout time.Duration) Client {
+	return Client{
+		httpClient: http.Client{
+			Timeout: timeout,
+		},
+	}
 }
