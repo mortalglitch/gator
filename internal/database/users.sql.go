@@ -47,6 +47,15 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const deleteUsers = `-- name: DeleteUsers :exec
+DELETE FROM users
+`
+
+func (q *Queries) DeleteUsers(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteUsers)
+	return err
+}
+
 const getUser = `-- name: GetUser :one
 SELECT id, created_at, updated_at, name FROM users
 WHERE name = $1 LIMIT 1
@@ -65,22 +74,27 @@ func (q *Queries) GetUser(ctx context.Context, name string) (User, error) {
 }
 
 const getUsers = `-- name: GetUsers :many
-SELECT name FROM users
+SELECT id, created_at, updated_at, name FROM users
 `
 
-func (q *Queries) GetUsers(ctx context.Context) ([]string, error) {
+func (q *Queries) GetUsers(ctx context.Context) ([]User, error) {
 	rows, err := q.db.QueryContext(ctx, getUsers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []string
+	var items []User
 	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+		); err != nil {
 			return nil, err
 		}
-		items = append(items, name)
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -89,13 +103,4 @@ func (q *Queries) GetUsers(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	return items, nil
-}
-
-const reset = `-- name: Reset :exec
-DELETE FROM users
-`
-
-func (q *Queries) Reset(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, reset)
-	return err
 }
