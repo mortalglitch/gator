@@ -49,6 +49,20 @@ func handlerAddFeed(s *state, cmd command) error {
 
 	fmt.Println("Feed added successfully:")
 	printFeed(feed, s)
+
+	// Register as following for current user
+	follow , err := s.db.CreateFeedFollow(context.Background(), database.CreateFeedFollowParams{
+		ID:    uuid.New(),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+		UserID:    user.ID,
+		FeedID:    feed.ID,
+	})
+	if err != nil {
+		return fmt.Errorf("couldn't add follow: %w", err)
+	}
+	fmt.Println("Added to follow list: ", follow.ID)
+
 	return nil	
 }
 
@@ -72,5 +86,69 @@ func handlerListFeeds(s *state, cmd command) error {
 		printFeed(feed, s)
 	}
 
+	return nil
+}
+
+func handlerFollow(s *state, cmd command) error {
+	if len(cmd.Args) != 1 {
+		return fmt.Errorf("usage: %v <url>", cmd.Name)
+	}
+
+	url := cmd.Args[0]
+	
+	// Grab current user ID
+	current_user := s.cfg.CurrentUserName
+	user, err := s.db.GetUser(context.Background(), current_user)
+	if err != nil {
+		return fmt.Errorf("Unable to find user %s", current_user)
+	}
+
+	// Grab URL from feeds
+	feed, err := s.db.GetFeedByURL(context.Background(), url)
+	if err != nil {
+		return fmt.Errorf("Unable to find existing feed %s", url)
+	}
+
+	follow , err := s.db.CreateFeedFollow(context.Background(), database.CreateFeedFollowParams{
+		ID:    uuid.New(),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+		UserID:    user.ID,
+		FeedID:    feed.ID,
+	})
+	if err != nil {
+		return fmt.Errorf("couldn't add follow: %w", err)
+	}
+	
+
+	fmt.Println("Feed follow added successfully:")
+	fmt.Printf("Follow ID: %s\n", follow.ID)
+	fmt.Printf("User: %s\n", user.Name)
+	fmt.Printf("Followed: %s\n", feed.Name)
+	return nil	
+
+}
+
+func handlerFollowing(s *state, cmd command) error {
+	if len(cmd.Args) != 0 {
+		return fmt.Errorf("usage: %v", cmd.Name)
+	}
+
+	// Grab current user ID
+	current_user := s.cfg.CurrentUserName
+	user, err := s.db.GetUser(context.Background(), current_user)
+	if err != nil {
+		return fmt.Errorf("Unable to find user %s", current_user)
+	}
+
+	feeds, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)	
+	if err != nil {
+		return fmt.Errorf("Unable to find feeds for user: %s", user.Name)
+	}
+
+	for _, feed := range feeds {
+		fmt.Println("* ", feed.FeedName)
+	}
+	
 	return nil
 }
