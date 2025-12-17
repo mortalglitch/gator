@@ -3,6 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
+
+	"github.com/mortalglitch/gator/internal/database"
+	"github.com/google/uuid"
 )
 
 func handlerAgg(s *state, cmd command) error {
@@ -11,5 +15,62 @@ func handlerAgg(s *state, cmd command) error {
 		return fmt.Errorf("couldn't fetch feed: %w", err)
 	}
 	fmt.Printf("Feed: %+v\n", feed)
+	return nil
+}
+
+func handlerAddFeed(s *state, cmd command) error {
+	
+	if len(cmd.Args) != 2 {
+		return fmt.Errorf("usage: %v <title> <url>", cmd.Name)
+	}
+
+	name := cmd.Args[0]
+	url := cmd.Args[1]
+
+	// Grab current user ID
+	current_user := s.cfg.CurrentUserName
+	user, err := s.db.GetUser(context.Background(), current_user)
+	if err != nil {
+		return fmt.Errorf("Unable to find user %s", current_user)
+	}
+
+	feed, err := s.db.AddFeed(context.Background(), database.AddFeedParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+		Name:      name,
+		Url:       url,
+		UserID:    user.ID,
+	})
+	if err != nil {
+		return fmt.Errorf("couldn't add feed: %w", err)
+	}
+	
+
+	fmt.Println("Feed added successfully:")
+	printFeed(feed, s)
+	return nil	
+}
+
+func printFeed(feed database.Feed, s *state) {
+	fmt.Printf(" * ID:      %v\n", feed.ID)
+	fmt.Printf(" * Name:    %v\n", feed.Name)
+	fmt.Printf(" * URL:     %v\n", feed.Url)
+	user, err := s.db.GetUserByID(context.Background(), feed.UserID)
+	if err != nil {
+		fmt.Printf("Unable to find user from feed list: %s", feed.UserID)
+	}
+	fmt.Printf(" * User:    %v\n", user.Name)
+}
+
+func handlerListFeeds(s *state, cmd command) error {
+	feeds, err := s.db.GetFeeds(context.Background())
+	if err != nil {
+		return fmt.Errorf("couldn't list feeds: %w", err)
+	}
+	for _, feed := range feeds {
+		printFeed(feed, s)
+	}
+
 	return nil
 }
