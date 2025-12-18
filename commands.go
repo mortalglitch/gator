@@ -1,7 +1,13 @@
 
 package main
 
-import "errors"
+import (
+	"errors"
+	"context"
+	"fmt"
+
+	"github.com/mortalglitch/gator/internal/database"
+)
 
 type command struct {
 	Name string
@@ -22,4 +28,17 @@ func (c *commands) run(s *state, cmd command) error {
 		return errors.New("command not found")
 	}
 	return f(s, cmd)
+}
+
+func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(*state, command) error {
+	return func(s *state, cmd command) error {
+		// Grab current user ID
+		current_user := s.cfg.CurrentUserName
+		user, err := s.db.GetUser(context.Background(), current_user)
+		if err != nil {
+			return fmt.Errorf("Unable to find user %s", current_user)
+		}
+
+		return handler(s, cmd, user)
+	}
 }

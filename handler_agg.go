@@ -18,7 +18,7 @@ func handlerAgg(s *state, cmd command) error {
 	return nil
 }
 
-func handlerAddFeed(s *state, cmd command) error {
+func handlerAddFeed(s *state, cmd command, user database.User) error {
 	
 	if len(cmd.Args) != 2 {
 		return fmt.Errorf("usage: %v <title> <url>", cmd.Name)
@@ -28,11 +28,11 @@ func handlerAddFeed(s *state, cmd command) error {
 	url := cmd.Args[1]
 
 	// Grab current user ID
-	current_user := s.cfg.CurrentUserName
-	user, err := s.db.GetUser(context.Background(), current_user)
-	if err != nil {
-		return fmt.Errorf("Unable to find user %s", current_user)
-	}
+	//current_user := s.cfg.CurrentUserName
+	//user, err := s.db.GetUser(context.Background(), current_user)
+	//if err != nil {
+	//	return fmt.Errorf("Unable to find user %s", current_user)
+	//}
 
 	feed, err := s.db.AddFeed(context.Background(), database.AddFeedParams{
 		ID:        uuid.New(),
@@ -89,20 +89,13 @@ func handlerListFeeds(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollow(s *state, cmd command) error {
+func handlerFollow(s *state, cmd command, user database.User) error {
 	if len(cmd.Args) != 1 {
 		return fmt.Errorf("usage: %v <url>", cmd.Name)
 	}
 
 	url := cmd.Args[0]
 	
-	// Grab current user ID
-	current_user := s.cfg.CurrentUserName
-	user, err := s.db.GetUser(context.Background(), current_user)
-	if err != nil {
-		return fmt.Errorf("Unable to find user %s", current_user)
-	}
-
 	// Grab URL from feeds
 	feed, err := s.db.GetFeedByURL(context.Background(), url)
 	if err != nil {
@@ -129,16 +122,9 @@ func handlerFollow(s *state, cmd command) error {
 
 }
 
-func handlerFollowing(s *state, cmd command) error {
+func handlerFollowing(s *state, cmd command, user database.User) error {
 	if len(cmd.Args) != 0 {
 		return fmt.Errorf("usage: %v", cmd.Name)
-	}
-
-	// Grab current user ID
-	current_user := s.cfg.CurrentUserName
-	user, err := s.db.GetUser(context.Background(), current_user)
-	if err != nil {
-		return fmt.Errorf("Unable to find user %s", current_user)
 	}
 
 	feeds, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)	
@@ -150,5 +136,29 @@ func handlerFollowing(s *state, cmd command) error {
 		fmt.Println("* ", feed.FeedName)
 	}
 	
+	return nil
+}
+
+func handlerUnfollow(s *state, cmd command, user database.User) error {
+	if len(cmd.Args) != 1 {
+		return fmt.Errorf("usage: %v <url>", cmd.Name)
+	}
+
+	url := cmd.Args[0]
+
+	// Grab URL from feeds
+	feed, err := s.db.GetFeedByURL(context.Background(), url)
+	if err != nil {
+		return fmt.Errorf("Unable to find existing feed %s", url)
+	}
+
+  unfollowResult := s.db.DeleteUserFeed(context.Background(), database.DeleteUserFeedParams{
+		UserID:    user.ID,
+		FeedID:    feed.ID,
+	})
+	if err != nil {
+		return fmt.Errorf("couldn't unfollow: %w", unfollowResult)
+	}
+
 	return nil
 }
