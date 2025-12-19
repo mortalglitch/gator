@@ -4,17 +4,26 @@ import (
 	"context"
 	"fmt"
 	"time"
+	"strconv"
 
 	"github.com/mortalglitch/gator/internal/database"
 	"github.com/google/uuid"
 )
 
 func handlerAgg(s *state, cmd command) error {
-	feed, err := fetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
-	if err != nil {
-		return fmt.Errorf("couldn't fetch feed: %w", err)
+	if len(cmd.Args) != 1 {
+		return fmt.Errorf("usage: %v <time_between_reqs (1s, 1m, 1h)>", cmd.Name)
 	}
-	fmt.Printf("Feed: %+v\n", feed)
+
+	timeBetweenReqs, err := time.ParseDuration(cmd.Args[0])
+	if err != nil {
+		return fmt.Errorf("Error parsing time duration: %v", err)
+	}
+
+	ticker := time.NewTicker(timeBetweenReqs)
+	for ; ; <-ticker.C {
+		scrapeFeeds(s)
+	}
 	return nil
 }
 
@@ -26,14 +35,7 @@ func handlerAddFeed(s *state, cmd command, user database.User) error {
 
 	name := cmd.Args[0]
 	url := cmd.Args[1]
-
-	// Grab current user ID
-	//current_user := s.cfg.CurrentUserName
-	//user, err := s.db.GetUser(context.Background(), current_user)
-	//if err != nil {
-	//	return fmt.Errorf("Unable to find user %s", current_user)
-	//}
-
+	
 	feed, err := s.db.AddFeed(context.Background(), database.AddFeedParams{
 		ID:        uuid.New(),
 		CreatedAt: time.Now().UTC(),
@@ -46,7 +48,6 @@ func handlerAddFeed(s *state, cmd command, user database.User) error {
 		return fmt.Errorf("couldn't add feed: %w", err)
 	}
 	
-
 	fmt.Println("Feed added successfully:")
 	printFeed(feed, s)
 
@@ -160,5 +161,31 @@ func handlerUnfollow(s *state, cmd command, user database.User) error {
 		return fmt.Errorf("couldn't unfollow: %w", unfollowResult)
 	}
 
+	return nil
+}
+
+func handlerBrowse(s *state, cmd command) error {
+	
+	amount, err := strconv.Atoi(cmd.Args[0])
+	if err != nil {
+		return err
+	}
+
+	if amount < 2 {
+		amount = 2
+	}
+
+	posts, err := s.db.GetPostForUser(context.Background(), int32(amount))
+	if err != nil {
+		return err
+	}
+
+	for _, post := range posts {
+		fmt.Printf("* %v\n", post.Title)
+		fmt.Printf("* %v\n", post.Url)
+		fmt.Printf("* %v\n", post.Description)
+		fmt.Printf("* %v\n", post.PublishedAt)
+	}
+	
 	return nil
 }
