@@ -13,12 +13,12 @@ Where the "postgres://username" will be the username you use with your local pos
 
 A few commands:
 - gator register  - Register a new user
-- gator login <username> - Log into a specific user.
+- gator login (username) - Log into a specific user.
 - gator reset  - resets and drops tables from the current database.
 - gator users  - lists all users from database.
 - gator agg [optional: time 1s, 1m, 1hr]   - starts the aggregation process based on the time interval 15s for example would refresh every 15 seconds.
-- gator addfeed <name> <url> - adds a feed to the current login users follow lists
-- gator follow <url> - follows a feed based on URL
+- gator addfeed ("name") ("url") - adds a feed to the current login users follow lists
+- gator follow ("url") - follows a feed based on URL
 
 
 
